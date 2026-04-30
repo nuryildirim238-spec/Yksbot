@@ -4,6 +4,41 @@ from datetime import datetime, timedelta
 class AnalysisService:
     
     @staticmethod
+    async def get_category_average(user_id: int, category: str):
+        """
+        TYT veya AYT kategorisindeki derslerin ortalama başarısı
+        category: "tyt" veya "ayt"
+        """
+        user = await db.get_collection("users").find_one({"user_id": user_id})
+        if not user or "subjects" not in user:
+            return None
+        
+        category_subjects = []
+        for subject_name, topics in user["subjects"].items():
+            if subject_name.startswith(category):
+                if topics:
+                    avg = sum(topics.values()) / len(topics)
+                    category_subjects.append(avg)
+        
+        if not category_subjects:
+            return None
+        
+        return round(sum(category_subjects) / len(category_subjects))
+    
+    @staticmethod
+    async def get_subject_average(user_id: int, subject_name: str):
+        """Bir dersin ortalama puanı"""
+        user = await db.get_collection("users").find_one({"user_id": user_id})
+        if not user or "subjects" not in user or subject_name not in user["subjects"]:
+            return 0
+        
+        topics = user["subjects"][subject_name]
+        if not topics:
+            return 0
+        
+        return round(sum(topics.values()) / len(topics))
+    
+    @staticmethod
     async def get_subject_averages(user_id: int):
         """Her dersin ortalama puanını hesapla"""
         user = await db.get_collection("users").find_one({"user_id": user_id})
