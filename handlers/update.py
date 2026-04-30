@@ -5,73 +5,90 @@ from aiogram.types import CallbackQuery, Message
 
 from services.subject_service import SubjectService
 from services.user_service import UserService
-from keyboards.inline import subject_menu, topic_menu, score_buttons, nav_buttons, main_menu
+from services.analysis_service import AnalysisService
+from keyboards.inline import category_menu, subject_menu, topic_menu_with_scores, score_range_menu, nav_buttons, main_menu
 
 router = Router()
 
 class UpdateState(StatesGroup):
+    selecting_category = State()
     selecting_subject = State()
     selecting_topic = State()
 
 @router.callback_query(F.data == "update_subjects")
 async def start_update(callback: CallbackQuery, state: FSMContext):
-    """Konu güncellemeyi başlat"""
-    subjects = await SubjectService.get_all_subjects()
+    """Konu güncellemeyi başlat - TYT/AYT kategorilerini göster"""
+    user_id = callback.from_user.id
     
-    if not subjects:
-        await callback.message.edit_text(
-            "❌ Sistem hatası: Ders listesi bulunamadı.\n"
-            "Lütfen daha sonra tekrar deneyin.",
-            reply_markup=nav_buttons(home_callback="main_menu")
-        )
-        await callback.answer()
-        return
+    # Kullanıcının TYT ve AYT ortalama başarılarını hesapla
+    tyt_avg = await AnalysisService.get_category_average(user_id, "tyt")
+    ayt_avg = await AnalysisService.get_category_average(user_id, "ayt")
     
-    await state.set_state(UpdateState.selecting_subject)
+    await state.set_state(UpdateState.selecting_category)
+    
     await callback.message.edit_text(
         "📚 **Konu Güncelleme** 📚\n\n"
-        "Hangi dersin konusunu güncellemek istiyorsun?",
-        reply_markup=subject_menu(subjects)
+        "Hangi kategorideki derslerinizi güncellemek istiyorsunuz?\n\n"
+        "📊 **Genel Durumunuz:**",
+        reply_markup=category_menu(tyt_avg, ayt_avg)
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("category_"))
+async def select_category(callback: CallbackQuery, state: FSMContext):
+    """TYT veya AYT seçildi - dersleri göster"""
+    category = callback.data.replace("category_", "")  # "tyt" veya "ayt"
+    
+    subjects = await SubjectService.get_all_subjects()
+    # Sadece seçilen kategorideki dersleri filtrele
+    filtered_subjects = [s for s in subjects if s["name"].startswith(category)]
+    
+    # Ders başarılarını hesapla
+    user_id = callback.from_user.id
+    subject_scores = {}
+    for subject in filtered_subjects:
+        avg = await AnalysisService.get_subject_average(user_id, subject["name"])
+        subject_scores[subject["name"]] = avg
+    
+    await state.update_data(selected_category=category)
+    await state.set_state(UpdateState.selecting_subject)
+    
+    await callback.message.edit_text(
+        f"📖 **{category.upper()} Dersleri** 📖\n\n"
+        f"Hangi dersi güncellemek istiyorsunuz?",
+        reply_markup=subject_menu(filtered_subjects, subject_scores)
     )
     await callback.answer()
 
 @router.callback_query(F.data.startswith("subject_"))
 async def select_subject(callback: CallbackQuery, state: FSMContext):
-    """Ders seçildi"""
+    """Ders seçildi - konuları göster (puanlarla birlikte)"""
     subject_name = callback.data.replace("subject_", "")
-    
-    # Dersin varlığını kontrol et
-    exists = await SubjectService.subject_exists(subject_name)
-    if not exists:
-        await callback.message.edit_text(
-            "❌ Geçersiz ders seçimi.",
-            reply_markup=nav_buttons(home_callback="main_menu")
-        )
-        await callback.answer()
-        return
     
     topics = await SubjectService.get_topics_by_subject(subject_name)
     
-    if not topics:
-        await callback.message.edit_text(
-            f"❌ {subject_name.title()} dersi için konu bulunamadı.",
-            reply_markup=nav_buttons(back_callback="update_subjects", home_callback="main_menu")
-        )
-        await callback.answer()
-        return
+    # Konuların mevcut puanlarını al
+    user_id = callback.from_user.id
+    user = await UserService.get_user(user_id)
+    
+    topic_scores = {}
+    if user and "subjects" in user and subject_name in user["subjects"]:
+        topic_scores = user["subjects"][subject_name]
     
     await state.update_data(selected_subject=subject_name)
     await state.set_state(UpdateState.selecting_topic)
     
     await callback.message.edit_text(
-        f"📖 **{subject_name.title()}** dersi için hangi konuyu güncellemek istiyorsun?",
-        reply_markup=topic_menu(subject_name, topics)
+        f"📖 **{subject_name.replace('_', ' ').title()} Konuları** 📖\n\n"
+        f"Mevcut durumunuz:\n"
+        f"📊 **Ders Ortalaması:** {await AnalysisService.get_subject_average(user_id, subject_name)}%",
+        reply_markup=topic_menu_with_scores(subject_name, topics, topic_scores)
     )
     await callback.answer()
 
 @router.callback_query(F.data.startswith("topic_"))
 async def select_topic(callback: CallbackQuery, state: FSMContext):
-    """Konu seçildi"""
+    """Konu seçildi - puanlama menüsünü göster"""
     data = callback.data.replace("topic_", "")
     parts = data.split("_", 1)
     
@@ -86,22 +103,27 @@ async def select_topic(callback: CallbackQuery, state: FSMContext):
     subject_name = parts[0]
     topic_name = parts[1]
     
+    # Mevcut puanı al
+    user_id = callback.from_user.id
+    user = await UserService.get_user(user_id)
+    current_score = None
+    if user and "subjects" in user and subject_name in user["subjects"]:
+        current_score = user["subjects"][subject_name].get(topic_name)
+    
     await state.update_data(selected_topic=topic_name)
     
     await callback.message.edit_text(
-        f"📊 **{subject_name.title()} - {topic_name.title()}**\n\n"
-        f"Bu konudaki seviyeni 0-100 arasında puanla:\n\n"
-        f"💯 100: Çok iyi hakimim\n"
-        f"📌 50: Orta seviyeyim\n"
-        f"⚠️ 0: Hiç bilmiyorum",
-        reply_markup=score_buttons(subject_name, topic_name)
+        f"📊 **{subject_name.replace('_', ' ').title()} - {topic_name.title()}**\n\n"
+        f"{f'📌 Mevcut puanınız: **{current_score}**' if current_score is not None else '📌 Henüz puan vermediniz'}\n\n"
+        f"**Yeni seviyenizi seçin:**",
+        reply_markup=score_range_menu(subject_name, topic_name, current_score)
     )
     await callback.answer()
 
-@router.callback_query(F.data.startswith("score_"))
+@router.callback_query(F.data.startswith("score_range_"))
 async def save_score(callback: CallbackQuery, state: FSMContext):
-    """Puanı kaydet"""
-    data = callback.data.replace("score_", "")
+    """Puan aralığı seçildi - kaydet"""
+    data = callback.data.replace("score_range_", "")
     parts = data.split("_")
     
     if len(parts) != 3:
@@ -114,63 +136,124 @@ async def save_score(callback: CallbackQuery, state: FSMContext):
     
     subject_name = parts[0]
     topic_name = parts[1]
-    score = int(parts[2])
+    score_range = parts[2]
     
+    # Aralığın ortalama puanını hesapla
+    score_map = {
+        "0_30": 15,
+        "30_50": 40,
+        "50_70": 60,
+        "70_90": 80,
+        "100": 100
+    }
+    new_score = score_map.get(score_range, 0)
+    
+    # Mevcut puanı al
     user_id = callback.from_user.id
+    user = await UserService.get_user(user_id)
+    old_score = None
+    if user and "subjects" in user and subject_name in user["subjects"]:
+        old_score = user["subjects"][subject_name].get(topic_name)
     
     # Puanı kaydet
-    await UserService.update_subject_score(user_id, subject_name, topic_name, score)
+    await UserService.update_subject_score(user_id, subject_name, topic_name, new_score)
     
-    await state.clear()
+    # Kısa özet için analiz yap
+    new_avg = await AnalysisService.get_subject_average(user_id, subject_name)
+    weak_topics = await AnalysisService.get_weak_topics(user_id, 40)
+    strong_topics = await AnalysisService.get_strong_topics(user_id, 70)
+    
+    await state.update_data(selected_subject=subject_name)
+    await state.set_state(UpdateState.selecting_topic)
     
     # Başarı mesajı
-    if score >= 80:
+    if new_score >= 80:
         emoji = "🎉"
         message_text = "Harika! Bu konuda çok iyisin!"
-    elif score >= 50:
+    elif new_score >= 50:
         emoji = "👍"
         message_text = "Güzel! Biraz daha çalışmayla mükemmel olacak."
     else:
         emoji = "📚"
         message_text = "Tamam! Bu konuya biraz daha zaman ayıralım."
     
+    change_text = ""
+    if old_score:
+        change = new_score - old_score
+        if change > 0:
+            change_text = f" (+{change}) 📈"
+        elif change < 0:
+            change_text = f" ({change}) 📉"
+    
+    # Konu listesine dönüş butonları ile özet göster
+    topics = await SubjectService.get_topics_by_subject(subject_name)
+    user = await UserService.get_user(user_id)
+    topic_scores = {}
+    if user and "subjects" in user and subject_name in user["subjects"]:
+        topic_scores = user["subjects"][subject_name]
+    
     await callback.message.edit_text(
         f"{emoji} **Konu Güncellendi!** {emoji}\n\n"
-        f"📖 {subject_name.title()} - {topic_name.title()}\n"
-        f"📊 Yeni Puan: **{score}**\n\n"
+        f"📖 {subject_name.replace('_', ' ').title()} - {topic_name.title()}\n"
+        f"📊 Puan: **{old_score if old_score else '?'}** → **{new_score}**{change_text}\n\n"
         f"{message_text}\n\n"
-        f"Başka bir konu güncellemek için ana menüden "
-        f'"📚 Konularımı Güncelle" seçeneğini kullanabilirsin.',
-        reply_markup=main_menu()
-    )
-    await callback.answer()
-
-@router.callback_query(F.data.startswith("back_to_topics_"))
-async def back_to_topics(callback: CallbackQuery, state: FSMContext):
-    """Konu listesine geri dön"""
-    subject_name = callback.data.replace("back_to_topics_", "")
-    
-    topics = await SubjectService.get_topics_by_subject(subject_name)
-    
-    await state.set_state(UpdateState.selecting_topic)
-    await state.update_data(selected_subject=subject_name)
-    
-    await callback.message.edit_text(
-        f"📖 **{subject_name.title()}** dersi için hangi konuyu güncellemek istiyorsun?",
-        reply_markup=topic_menu(subject_name, topics)
+        f"📊 **{subject_name.replace('_', ' ').title()} Güncel Ortalama:** %{new_avg}\n"
+        f"📉 **Zayıf konular:** {len(weak_topics)} tane\n"
+        f"🔥 **Güçlü konular:** {len(strong_topics)} tane\n\n"
+        f"**Devam etmek ister misiniz?**",
+        reply_markup=topic_menu_with_scores(subject_name, topics, topic_scores, show_continue=True)
     )
     await callback.answer()
 
 @router.callback_query(F.data == "back_to_subjects")
 async def back_to_subjects(callback: CallbackQuery, state: FSMContext):
     """Ders listesine geri dön"""
+    data = await state.get_data()
+    category = data.get("selected_category", "tyt")
+    
     subjects = await SubjectService.get_all_subjects()
+    filtered_subjects = [s for s in subjects if s["name"].startswith(category)]
+    
+    # Ders başarılarını hesapla
+    user_id = callback.from_user.id
+    subject_scores = {}
+    for subject in filtered_subjects:
+        avg = await AnalysisService.get_subject_average(user_id, subject["name"])
+        subject_scores[subject["name"]] = avg
     
     await state.set_state(UpdateState.selecting_subject)
     
     await callback.message.edit_text(
-        "📚 **Konu Güncelleme** 📚\n\n"
-        "Hangi dersin konusunu güncellemek istiyorsun?",
-        reply_markup=subject_menu(subjects)
+        f"📖 **{category.upper()} Dersleri** 📖\n\n"
+        f"Hangi dersi güncellemek istiyorsunuz?",
+        reply_markup=subject_menu(filtered_subjects, subject_scores)
+    )
+    await callback.answer()
+
+@router.callback_query(F.data == "continue_same_subject")
+async def continue_same_subject(callback: CallbackQuery, state: FSMContext):
+    """Aynı derse devam et"""
+    data = await state.get_data()
+    subject_name = data.get("selected_subject")
+    category = data.get("selected_category", "tyt")
+    
+    topics = await SubjectService.get_topics_by_subject(subject_name)
+    
+    # Konuların mevcut puanlarını al
+    user_id = callback.from_user.id
+    user = await UserService.get_user(user_id)
+    
+    topic_scores = {}
+    if user and "subjects" in user and subject_name in user["subjects"]:
+        topic_scores = user["subjects"][subject_name]
+    
+    await state.set_state(UpdateState.selecting_topic)
+    
+    await callback.message.edit_text(
+        f"📖 **{subject_name.replace('_', ' ').title()} Konuları** 📖\n\n"
+        f"Mevcut durumunuz:\n"
+        f"📊 **Ders Ortalaması:** {await AnalysisService.get_subject_average(user_id, subject_name)}%\n\n"
+        f"**Başka bir konu seçin:**",
+        reply_markup=topic_menu_with_scores(subject_name, topics, topic_scores)
     )
     await callback.answer()
