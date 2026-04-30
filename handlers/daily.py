@@ -7,7 +7,7 @@ from services.stats_service import StatsService
 from services.user_service import UserService
 from keyboards.inline import main_menu, nav_buttons, cancel_button
 from utils.formatters import format_hours, format_questions
-
+from database.mongo import db
 router = Router()
 
 class DailyState(StatesGroup):
