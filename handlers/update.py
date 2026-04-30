@@ -257,3 +257,49 @@ async def continue_same_subject(callback: CallbackQuery, state: FSMContext):
         reply_markup=topic_menu_with_scores(subject_name, topics, topic_scores)
     )
     await callback.answer()
+@router.callback_query(F.data == "back_to_categories")
+async def back_to_categories(callback: CallbackQuery, state: FSMContext):
+    """Kategorilere geri dön"""
+    user_id = callback.from_user.id
+    
+    tyt_avg = await AnalysisService.get_category_average(user_id, "tyt")
+    ayt_avg = await AnalysisService.get_category_average(user_id, "ayt")
+    
+    await state.set_state(UpdateState.selecting_category)
+    
+    await callback.message.edit_text(
+        "📚 **Konu Güncelleme** 📚\n\n"
+        "Hangi kategorideki derslerinizi güncellemek istiyorsunuz?\n\n"
+        "📊 **Genel Durumunuz:**",
+        reply_markup=category_menu(tyt_avg, ayt_avg)
+    )
+    await callback.answer()
+
+@router.callback_query(F.data.startswith("back_to_topics_"))
+async def back_to_topics(callback: CallbackQuery, state: FSMContext):
+    """Konu listesine geri dön"""
+    subject_name = callback.data.replace("back_to_topics_", "")
+    
+    topics = await SubjectService.get_topics_by_subject(subject_name)
+    
+    # Konuların mevcut puanlarını al
+    user_id = callback.from_user.id
+    user = await UserService.get_user(user_id)
+    
+    topic_scores = {}
+    if user and "subjects" in user and subject_name in user["subjects"]:
+        topic_scores = user["subjects"][subject_name]
+    
+    await state.update_data(selected_subject=subject_name)
+    await state.set_state(UpdateState.selecting_topic)
+    
+    await callback.message.edit_text(
+        f"📖 **{subject_name.replace('_', ' ').title()} Konuları** 📖\n\n"
+        f"Mevcut durumunuz:\n"
+        f"📊 **Ders Ortalaması:** {await AnalysisService.get_subject_average(user_id, subject_name)}%",
+        reply_markup=topic_menu_with_scores(subject_name, topics, topic_scores)
+    )
+    await callback.answer()
+
+
+
