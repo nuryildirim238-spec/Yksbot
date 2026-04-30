@@ -168,3 +168,19 @@ def back_to_categories_button():
         [InlineKeyboardButton(text="🔙 Kategorilere Dön", callback_data="back_to_categories")],
         [InlineKeyboardButton(text="🏠 Ana Menü", callback_data="main_menu")]
     ])
+
+def back_to_categories_button():
+    """Kategorilere dönüş butonu"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Kategorilere Dön", callback_data="back_to_categories")],
+        [InlineKeyboardButton(text="🏠 Ana Menü", callback_data="main_menu")],
+        [InlineKeyboardButton(text="❌ İptal", callback_data="cancel")]
+    ])
+
+def simple_back_button(back_callback: str):
+    """Basit geri butonu"""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 Geri", callback_data=back_callback)],
+        [InlineKeyboardButton(text="🏠 Ana Menü", callback_data="main_menu")],
+        [InlineKeyboardButton(text="❌ İptal", callback_data="cancel")]
+    ])
