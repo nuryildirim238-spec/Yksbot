@@ -2,10 +2,9 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.formatters import progress_bar
 
 def main_menu():
-    """Ana menü butonları"""
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📊 Profilim", callback_data="profile")],
-        [InlineKeyboardButton(text="📝 Günlük Giriş", callback_data="daily")],
+        [InlineKeyboardButton(text="📝 Günlük Giriş", callback_data="daily")],  # ← bu callback daily.py'deki daily_menu'ye gidecek
         [InlineKeyboardButton(text="📚 Konularımı Güncelle", callback_data="update_subjects")],
         [InlineKeyboardButton(text="📈 Analiz", callback_data="analysis")],
         [InlineKeyboardButton(text="⚙️ Ayarlar", callback_data="settings")],
