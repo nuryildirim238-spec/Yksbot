@@ -1,8 +1,15 @@
 import asyncio
 import logging
+import sys
+import os
+
+# Projenin kök dizinini ekle (Railway için)
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 
+# Config import - doğrudan dosyadan oku
 from config import config
 from database.mongo import db
 from services.subject_service import SubjectService
@@ -14,6 +21,8 @@ logging.basicConfig(level=logging.INFO)
 
 async def main():
     """Botu başlat"""
+    
+    print("🚀 Bot başlatılıyor...")
     
     # MongoDB'ye bağlan
     await db.connect()
@@ -36,7 +45,8 @@ async def main():
     # Botu başlat
     await bot.delete_webhook(drop_pending_updates=True)
     print("✅ Bot başlatıldı!")
-    print(f"🤖 Bot: @{(await bot.get_me()).username}")
+    me = await bot.get_me()
+    print(f"🤖 Bot: @{me.username}")
     
     await dp.start_polling(bot)
 
