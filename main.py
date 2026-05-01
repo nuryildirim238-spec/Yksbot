@@ -1,28 +1,35 @@
-import os
 import asyncio
+import os
+from aiogram import Bot, Dispatcher
+from aiogram.filters import CommandStart
+from aiogram.types import Message
 from motor.motor_asyncio import AsyncIOMotorClient
 
-MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME = os.getenv("DB_NAME", "yks_bot")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+MONGO_URL = os.getenv("MONGO_URL")
 
-async def test_mongo():
-    print(f"🔗 URI: {MONGO_URI}")
-    print(f"📁 Database: {DB_NAME}")
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+@dp.message(CommandStart())
+async def start(message: Message):
+    await message.answer("✅ Bot çalışıyor! Telegram bağlantısı var.")
+
+async def main():
+    print("🚀 Bot başlatılıyor...")
     
-    try:
-        client = AsyncIOMotorClient(MONGO_URI)
-        await client.admin.command('ping')
-        print("✅ MongoDB bağlantısı BAŞARILI!")
-        
-        # Bot token kontrolü
-        BOT_TOKEN = os.getenv("BOT_TOKEN")
-        if BOT_TOKEN:
-            print("✅ BOT_TOKEN var!")
-        else:
-            print("❌ BOT_TOKEN yok!")
-            
-    except Exception as e:
-        print(f"❌ HATA: {e}")
+    # MongoDB test
+    if MONGO_URL:
+        try:
+            client = AsyncIOMotorClient(MONGO_URL)
+            await client.admin.command('ping')
+            print("✅ MongoDB bağlantısı doğrulandı!")
+        except Exception as e:
+            print(f"❌ MongoDB hatası: {e}")
+    
+    await bot.delete_webhook(drop_pending_updates=True)
+    print("✅ Bot hazır! /start yazabilirsin.")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(test_mongo())
+    asyncio.run(main())
