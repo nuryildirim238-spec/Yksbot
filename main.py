@@ -1,52 +1,57 @@
 import asyncio
-import logging
-import sys
 import os
+import sys
 
-# Projenin kök dizinini ekle (Railway için)
+# Proje kök dizinini ekle
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from aiogram import Bot, Dispatcher
 from aiogram.enums import ParseMode
 
-# Config import - doğrudan dosyadan oku
-from config import config
+# Environment variables
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+# Database
 from database.mongo import db
+
+# Services
 from services.subject_service import SubjectService
 
-# Handler'ları import et
-from handlers import start, menu, profile, daily, update, survey
-
-logging.basicConfig(level=logging.INFO)
+# Handlers
+from handlers.start import router as start_router
+from handlers.menu import router as menu_router
+from handlers.profile import router as profile_router
+from handlers.daily import router as daily_router
+from handlers.update import router as update_router
+from handlers.survey import router as survey_router
 
 async def main():
-    """Botu başlat"""
-    
     print("🚀 Bot başlatılıyor...")
+    
+    if not BOT_TOKEN:
+        print("❌ BOT_TOKEN bulunamadı!")
+        return
     
     # MongoDB'ye bağlan
     await db.connect()
     
-    # Default ders/konu listesini kontrol et/yükle
+    # Default dersleri yükle
     await SubjectService.init_default_subjects()
     
     # Bot'u başlat
-    bot = Bot(token=config.BOT_TOKEN, parse_mode=ParseMode.MARKDOWN)
+    bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.MARKDOWN)
     dp = Dispatcher()
     
     # Router'ları ekle
-    dp.include_router(start.router)
-    dp.include_router(menu.router)
-    dp.include_router(profile.router)
-    dp.include_router(daily.router)
-    dp.include_router(update.router)
-    dp.include_router(survey.router)
+    dp.include_router(start_router)
+    dp.include_router(menu_router)
+    dp.include_router(profile_router)
+    dp.include_router(daily_router)
+    dp.include_router(update_router)
+    dp.include_router(survey_router)
     
-    # Botu başlat
     await bot.delete_webhook(drop_pending_updates=True)
     print("✅ Bot başlatıldı!")
-    me = await bot.get_me()
-    print(f"🤖 Bot: @{me.username}")
     
     await dp.start_polling(bot)
 
