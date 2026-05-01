@@ -10,11 +10,11 @@ class MongoDB:
 
     @classmethod
     async def connect(cls):
-        print(f"🔗 Bağlanılan: {MONGO_URL}")
-        
         if not MONGO_URL:
             print("❌ MONGO_URL bulunamadı!")
             return
+        
+        print(f"🔗 Bağlanılıyor...")
         
         try:
             cls.client = AsyncIOMotorClient(MONGO_URL)
@@ -26,8 +26,10 @@ class MongoDB:
             await cls.db.subjects.create_index("name", unique=True)
             
             print("✅ MongoDB bağlantısı başarılı!")
+            return True
         except Exception as e:
             print(f"❌ HATA: {e}")
+            return False
 
     @classmethod
     def get_collection(cls, name):
