@@ -5,8 +5,6 @@ from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-MONGO_URL = os.getenv("MONGO_URL")
-DB_NAME = os.getenv("DB_NAME", "yks_bot")
 
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 dp = Dispatcher()
@@ -18,7 +16,13 @@ from handlers import start, menu, profile, daily, update, survey
 async def main():
     print("🚀 Bot başlatılıyor...")
     
-    await db.connect()
+    # MongoDB bağlantısı
+    connected = await db.connect()
+    if not connected:
+        print("❌ MongoDB bağlanamadı! Bot kapatılıyor...")
+        return
+    
+    # Default dersler
     await SubjectService.init_default_subjects()
     
     dp.include_router(start.router)
