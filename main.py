@@ -1,35 +1,42 @@
-import asyncio
 import os
-from aiogram import Bot, Dispatcher
-from aiogram.filters import CommandStart
-from aiogram.types import Message
 from motor.motor_asyncio import AsyncIOMotorClient
+from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URL = os.getenv("MONGO_URL")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+DB_NAME = os.getenv("DB_NAME", "yks_bot")
 
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.MARKDOWN)
 dp = Dispatcher()
 
-@dp.message(CommandStart())
-async def start(message: Message):
-    await message.answer("✅ Bot çalışıyor! Telegram bağlantısı var.")
+class MongoDB:
+    client = None
+    db = None
 
-async def main():
-    print("🚀 Bot başlatılıyor...")
-    
-    # MongoDB test
-    if MONGO_URL:
+    @classmethod
+    async def connect(cls):
+        if not MONGO_URL:
+            print("❌ MONGO_URL bulunamadı!")
+            return False
+        
         try:
-            client = AsyncIOMotorClient(MONGO_URL)
-            await client.admin.command('ping')
-            print("✅ MongoDB bağlantısı doğrulandı!")
+            cls.client = AsyncIOMotorClient(MONGO_URL)
+            cls.db = cls.client[DB_NAME]
+            await cls.client.admin.command('ping')
+            
+            await cls.db.users.create_index("user_id", unique=True)
+            await cls.db.daily_logs.create_index([("user_id", 1), ("date", 1)], unique=True)
+            await cls.db.subjects.create_index("name", unique=True)
+            
+            print("✅ MongoDB bağlantısı başarılı!")
+            return True
         except Exception as e:
-            print(f"❌ MongoDB hatası: {e}")
-    
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Bot hazır! /start yazabilirsin.")
-    await dp.start_polling(bot)
+            print(f"❌ HATA: {e}")
+            return False
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    @classmethod
+    def get_collection(cls, name):
+        return cls.db[name]
+
+db = MongoDB()
