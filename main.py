@@ -1,59 +1,28 @@
-import asyncio
 import os
-import sys
+import asyncio
+from motor.motor_asyncio import AsyncIOMotorClient
 
-# Proje kök dizinini ekle
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+MONGO_URI = os.getenv("MONGO_URI")
+DB_NAME = os.getenv("DB_NAME", "yks_bot")
 
-from aiogram import Bot, Dispatcher
-from aiogram.enums import ParseMode
-
-# Environment variables
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-# Database
-from database.mongo import db
-
-# Services
-from services.subject_service import SubjectService
-
-# Handlers
-from handlers.start import router as start_router
-from handlers.menu import router as menu_router
-from handlers.profile import router as profile_router
-from handlers.daily import router as daily_router
-from handlers.update import router as update_router
-from handlers.survey import router as survey_router
-
-async def main():
-    print("🚀 Bot başlatılıyor...")
+async def test_mongo():
+    print(f"🔗 URI: {MONGO_URI}")
+    print(f"📁 Database: {DB_NAME}")
     
-    if not BOT_TOKEN:
-        print("❌ BOT_TOKEN bulunamadı!")
-        return
-    
-    # MongoDB'ye bağlan
-    await db.connect()
-    
-    # Default dersleri yükle
-    await SubjectService.init_default_subjects()
-    
-    # Bot'u başlat
-    bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.MARKDOWN)
-    dp = Dispatcher()
-    
-    # Router'ları ekle
-    dp.include_router(start_router)
-    dp.include_router(menu_router)
-    dp.include_router(profile_router)
-    dp.include_router(daily_router)
-    dp.include_router(update_router)
-    dp.include_router(survey_router)
-    
-    await bot.delete_webhook(drop_pending_updates=True)
-    print("✅ Bot başlatıldı!")
-    
-    await dp.start_polling(bot)
+    try:
+        client = AsyncIOMotorClient(MONGO_URI)
+        await client.admin.command('ping')
+        print("✅ MongoDB bağlantısı BAŞARILI!")
+        
+        # Bot token kontrolü
+        BOT_TOKEN = os.getenv("BOT_TOKEN")
+        if BOT_TOKEN:
+            print("✅ BOT_TOKEN var!")
+        else:
+            print("❌ BOT_TOKEN yok!")
+            
+    except Exception as e:
+        print(f"❌ HATA: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(test_mongo())
