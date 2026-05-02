@@ -10,7 +10,13 @@ from database.mongo import db
 
 router = Router()
 
-# /work komutu
+def clean_text(text: str) -> str:
+    """Markdown karakterlerini temizle"""
+    chars_to_remove = ['*', '_', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for ch in chars_to_remove:
+        text = text.replace(ch, '')
+    return text
+
 @router.message(Command("work"))
 async def work_command(message: Message):
     args = message.text.split()
@@ -18,21 +24,17 @@ async def work_command(message: Message):
     
     if len(args) < 2:
         await message.answer(
-            "❌ Lutfen calisma saati girin!\n\n"
-            "Dogru kullanim:\n"
-            "/work 3.5 - 3.5 saat calistim\n"
-            "/work 3.5 120 - 3.5 saat calistim, 120 soru cozdum\n"
-            "/soru 120 - 120 soru cozdum"
+            clean_text("❌ Lutfen calisma saati girin! \n\n Dogru kullanim: \n /work 3.5 - 3.5 saat calistim \n /work 3.5 120 - 3.5 saat calistim, 120 soru cozdum \n /soru 120 - 120 soru cozdum")
         )
         return
     
     try:
         hours = float(args[1].replace(",", "."))
         if hours < 0 or hours > 24:
-            await message.answer("❌ 0-24 arasinda bir saat giriniz!")
+            await message.answer(clean_text("❌ 0-24 arasinda bir saat giriniz!"))
             return
     except ValueError:
-        await message.answer("❌ Gecersiz saat! Ornek: /work 3.5")
+        await message.answer(clean_text("❌ Gecersiz saat! Ornek: /work 3.5"))
         return
     
     questions = None
@@ -40,10 +42,10 @@ async def work_command(message: Message):
         try:
             questions = int(args[2])
             if questions < 0 or questions > 5000:
-                await message.answer("❌ 0-5000 arasinda soru sayisi giriniz!")
+                await message.answer(clean_text("❌ 0-5000 arasinda soru sayisi giriniz!"))
                 return
         except ValueError:
-            await message.answer("❌ Gecersiz soru sayisi!")
+            await message.answer(clean_text("❌ Gecersiz soru sayisi!"))
             return
     
     existing_log = await StatsService.get_today_log(user_id)
@@ -72,27 +74,20 @@ async def work_command(message: Message):
         )
         
         await message.answer(
-            f"✅ Gunluk giris GUNCELLENDI! ✅\n\n"
-            f"📊 Bugun:\n"
-            f"⏱️ {format_hours(new_hours)} calistin\n"
-            f"📝 {format_questions(new_questions)} soru cozdun\n\n"
-            f"Eski degerler: {format_hours(old_hours)} / {format_questions(old_qs)}",
+            clean_text(f"✅ Gunluk giris GUNCELLENDI! ✅ \n \n 📊 Bugun: \n ⏱️ {format_hours(new_hours)} calistin \n 📝 {format_questions(new_questions)} soru cozdun \n \n Eski degerler: {format_hours(old_hours)} / {format_questions(old_qs)}"),
             reply_markup=main_menu()
         )
     else:
         await StatsService.add_daily_log(user_id, hours, questions or 0)
         await UserService.update_stats(user_id, hours, questions or 0)
         
-        msg = f"✅ Gunluk giris basariyla kaydedildi! ✅\n\n"
-        msg += f"📊 Bugun:\n"
-        msg += f"⏱️ {format_hours(hours)} calistin\n"
+        msg = f"✅ Gunluk giris basariyla kaydedildi! ✅ \n \n 📊 Bugun: \n ⏱️ {format_hours(hours)} calistin"
         if questions:
-            msg += f"📝 {format_questions(questions)} soru cozdun\n"
-        msg += f"\n🎯 Hedeflerine bir gun daha yaklastin!"
+            msg += f" \n 📝 {format_questions(questions)} soru cozdun"
+        msg += f" \n \n 🎯 Hedeflerine bir gun daha yaklastin!"
         
-        await message.answer(msg, reply_markup=main_menu())
+        await message.answer(clean_text(msg), reply_markup=main_menu())
 
-# /soru komutu
 @router.message(Command("soru"))
 async def question_command(message: Message):
     args = message.text.split()
@@ -100,19 +95,17 @@ async def question_command(message: Message):
     
     if len(args) < 2:
         await message.answer(
-            "❌ Lutfen soru sayisini girin!\n\n"
-            "Dogru kullanim: /soru 120\n"
-            "(120 soru cozdum anlamina gelir)"
+            clean_text("❌ Lutfen soru sayisini girin! \n\n Dogru kullanim: /soru 120 \n (120 soru cozdum anlamina gelir)")
         )
         return
     
     try:
         questions = int(args[1])
         if questions < 0 or questions > 5000:
-            await message.answer("❌ 0-5000 arasinda soru sayisi giriniz!")
+            await message.answer(clean_text("❌ 0-5000 arasinda soru sayisi giriniz!"))
             return
     except ValueError:
-        await message.answer("❌ Gecersiz soru sayisi! Ornek: /soru 120")
+        await message.answer(clean_text("❌ Gecersiz soru sayisi! Ornek: /soru 120"))
         return
     
     existing_log = await StatsService.get_today_log(user_id)
@@ -133,10 +126,7 @@ async def question_command(message: Message):
         )
         
         await message.answer(
-            f"✅ Soru sayisi GUNCELLENDI! ✅\n\n"
-            f"📊 Bugun:\n"
-            f"📝 {format_questions(questions)} soru cozdun\n\n"
-            f"Eski soru sayisi: {format_questions(old_qs)}",
+            clean_text(f"✅ Soru sayisi GUNCELLENDI! ✅ \n \n 📊 Bugun: \n 📝 {format_questions(questions)} soru cozdun \n \n Eski soru sayisi: {format_questions(old_qs)}"),
             reply_markup=main_menu()
         )
     else:
@@ -144,35 +134,22 @@ async def question_command(message: Message):
         await UserService.update_stats(user_id, 0, questions)
         
         await message.answer(
-            f"✅ {format_questions(questions)} soru kaydedildi! ✅\n\n"
-            f"📊 Calisma saatinizi de eklemek icin /work 3.5 yazabilirsiniz.",
+            clean_text(f"✅ {format_questions(questions)} soru kaydedildi! ✅ \n \n 📊 Calisma saatinizi de eklemek icin /work 3.5 yazabilirsiniz."),
             reply_markup=main_menu()
         )
 
-# Gunluk giris butonu
 @router.callback_query(F.data == "daily")
 async def daily_menu(callback: CallbackQuery):
     await callback.message.edit_text(
-        "📝 GUNLUK CALISMA TAKIBI 📝\n\n"
-        "Asagidaki komutlari kullanarak hizlica giris yapabilirsin:\n\n"
-        "/work 3.5 - 3.5 saat calistim\n"
-        "/work 3.5 120 - 3.5 saat calistim, 120 soru cozdum\n"
-        "/soru 120 - 120 soru cozdum\n\n"
-        "Ornek: /work 4 150 yazarak 4 saat calistigini ve 150 soru cozdugunu tek mesajda kaydedebilirsin!\n\n"
-        "Not: Ayni gun tekrar kayit yaparsan, ustune yazilir.",
+        clean_text("📝 GUNLUK CALISMA TAKIBI 📝 \n \n Asagidaki komutlari kullanarak hizlica giris yapabilirsin: \n \n /work 3.5 - 3.5 saat calistim \n /work 3.5 120 - 3.5 saat calistim, 120 soru cozdum \n /soru 120 - 120 soru cozdum \n \n Ornek: /work 4 150 yazarak 4 saat calistigini ve 150 soru cozdugunu tek mesajda kaydedebilirsin! \n \n Not: Ayni gun tekrar kayit yaparsan, ustune yazilir."),
         reply_markup=nav_buttons(home_callback="main_menu")
     )
     await callback.answer()
 
-# Bilinmeyen komutlar icin
 @router.message()
 async def unknown_command(message: Message):
     if message.text and message.text.startswith("/"):
         await message.answer(
-            "❌ Bilinmeyen komut!\n\n"
-            "Kullanilabilir komutlar:\n"
-            "/work - Calisma kaydi ekler\n"
-            "/soru - Soru kaydi ekler\n"
-            "/start - Botu baslatir",
+            clean_text("❌ Bilinmeyen komut! \n \n Kullanilabilir komutlar: \n /work - Calisma kaydi ekler \n /soru - Soru kaydi ekler \n /start - Botu baslatir"),
             reply_markup=main_menu()
         )
