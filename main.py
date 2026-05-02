@@ -25,12 +25,13 @@ async def main():
     # Default dersler
     await SubjectService.init_default_subjects()
     
+    # ÖNEMLİ: Router sıralaması - spesifik handler'lar önce, genel handler en sonda!
     dp.include_router(start.router)
-    dp.include_router(menu.router)
+    dp.include_router(daily.router)      # /work ve /soru komutları için
     dp.include_router(profile.router)
-    dp.include_router(daily.router)
     dp.include_router(update.router)
     dp.include_router(survey.router)
+    dp.include_router(menu.router)       # Genel mesaj yakalayıcı EN SONDA olmalı!
     
     await bot.delete_webhook(drop_pending_updates=True)
     print("✅ Bot hazır!")
@@ -38,3 +39,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
