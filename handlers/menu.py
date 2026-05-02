@@ -1,6 +1,7 @@
 from aiogram import Router, F
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
+from aiogram.filters import Command
 
 from keyboards.inline import main_menu, nav_buttons
 
@@ -41,11 +42,13 @@ async def settings_menu(callback: CallbackQuery):
     )
     await callback.answer()
 
-@router.message()
+# ÖNEMLİ: Bu handler SADECE normal mesajları yakalar, komutları DEĞİL!
+@router.message(~F.text.startswith('/'))
 async def unknown_message(message: Message):
-    """Bilinmeyen mesajlar için"""
+    """Bilinmeyen mesajlar için (komutlar hariç)"""
     await message.answer(
         "❓ Anlamadım.\n"
         "Lütfen menüden bir seçenek kullanın:",
         reply_markup=main_menu()
     )
+    
